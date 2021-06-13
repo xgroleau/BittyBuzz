@@ -35,6 +35,7 @@ option(BBZ_DISABLE_PY_BEHAV "Whether to disable Python behaviors of closures (ma
 option(BBZ_BYTEWISE_ASSIGNMENT "Whether to make assignment byte per byte." OFF)
 option(BBZ_NEIGHBORS_USE_FLOATS "Whether to use floats for the neighbor's range and bearing measurments." ON)
 option(BBZ_ENABLE_FLOAT_OPERATIONS "Whether to enable floats operations" ON)
+option(BBZ_ENABLE_REBROADCAST_MESSAGES "Whether to enable rebroadcast on buzz messages. Set to off if the comm channel is centralised and not dependent on proximity (i.e. with a router)" ON)
 
 # TODO Currently, there is no implementation of swarmlist broadcasts because
 # neighbors.kin and neighbors.nonkin, which are the only closures that would

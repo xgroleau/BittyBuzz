@@ -133,17 +133,21 @@ void bbzmsg_process_vstig(bbzmsg_t* msg) {
                 data->value = o;
                 bbzheap_obj_make_permanent(*bbzheap_obj_at(o));
                 data->timestamp = msg->vs.lamport;
+                #ifdef BBZ_ENABLE_REBROADCAST_MESSAGES
                 // Propagate the value.
                 bbzoutmsg_queue_append_vstig(BBZMSG_VSTIG_PUT, data->robot,
                                              data->key,
                                              data->value, data->timestamp);
+                #endif // BBZ_ENABLE_REBROADCAST_MESSAGES
             } // The following "else if" is only for VSTIG_QUERY mesages.
             else if (msg->type == BBZMSG_VSTIG_QUERY &&
                      bbzlamport_isnewer(data->timestamp, msg->vs.lamport)) {
                 /* Local element is newer */
+                #ifdef BBZ_ENABLE_REBROADCAST_MESSAGES
                 /* Append a PUT message to the out message queue */
                 bbzoutmsg_queue_append_vstig(BBZMSG_VSTIG_PUT, vm->robot, msg->vs.key,
                                              data->value, data->timestamp);
+                #endif // BBZ_ENABLE_REBROADCAST_MESSAGES
             }
             else if (data->timestamp == msg->vs.lamport &&
                      data->robot != msg->vs.rid) {

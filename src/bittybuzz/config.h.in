@@ -148,4 +148,10 @@
  */
 #cmakedefine BBZ_ENABLE_FLOAT_OPERATIONS
 
+/**
+ * @brief Whether to enable rebroadcast on buzz messages.
+ * Set to off if the comm channel is centralised and not dependent on proximity (i.e. with a router)
+ */
+#cmakedefine BBZ_ENABLE_REBROADCAST_MESSAGES
+
 #endif // !CONFIG_H
