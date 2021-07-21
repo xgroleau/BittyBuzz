@@ -1,0 +1,6 @@
+
+
+stig = stigmergy.create(0);
+stig.onconflict(function(key, ld, rd) {
+        return ld
+})

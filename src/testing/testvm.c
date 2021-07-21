@@ -2,7 +2,7 @@
 #include <bittybuzz/bbztype.h>
 #include <bittybuzz/bbzvm.h>
 
-#define NUM_TEST_CASES 17
+#define NUM_TEST_CASES 19
 #define TEST_MODULE vm
 #include "testingconfig.h"
 
@@ -224,6 +224,8 @@ int8_t bbzvm_register_functions() {
 #define FILE_TEST2 "resources/2_IfTest.bbo"
 #define FILE_TEST3 "resources/3_test1.bbo"
 #define FILE_TEST4 "resources/4_AllFeaturesTest.bbo"
+#define FILE_TEST5 "resources/5_Onconflict.bbo"
+#define FILE_TEST6 "resources/6_Onconflict_namedFunction.bbo"
 
 TEST(vm_construct) {
     vm = &vmObj;
@@ -785,6 +787,138 @@ TEST(vm_script_execution) {
     fclose(fbcode);
 }
 
+TEST(vm_onconflict) {
+    // Init VM
+    vm = &vmObj;
+
+    uint16_t robot = 0;
+    bbzvm_construct(robot);
+    bbzvm_set_error_receiver(&set_last_error);
+    fbcode = fopen(FILE_TEST5, "rb");
+    REQUIRE(fbcode != NULL);
+    REQUIRE(fseek(fbcode, 0, SEEK_END) == 0);
+    fsize = ftell(fbcode);
+    REQUIRE(fsize > 0);
+    REQUIRE(fseek(fbcode, 0, SEEK_SET) >= 0);
+
+    bbzvm_set_bcode(&testBcode, fsize);
+
+    REQUIRE(vm->state == BBZVM_STATE_READY);
+    REQUIRE(bbzvm_register_functions() >= 0); // If this fails, it means that the heap doesn't have enough memory allocated to execute this test.
+
+    // Stepping through script
+    while (vm->state == BBZVM_STATE_READY) {
+#ifdef DEBUG
+        uint8_t instr = *vm->bcode_fetch_fun(vm->pc,1);
+        if (instr > BBZVM_INSTR_CALLS) {
+            printf("[%d: %s %d]\n", vm->pc, instr_desc[instr], *(int16_t*)vm->bcode_fetch_fun(vm->pc+1,2));
+        }
+        else {
+            printf("[%d: %s]\n", vm->pc, instr_desc[instr]);
+        }
+#endif
+        bbzvm_step();
+        ASSERT(vm->state != BBZVM_STATE_ERROR);
+    }
+    ASSERT_EQUAL(vm->state, BBZVM_STATE_DONE);
+    ASSERT_EQUAL(vm->error, BBZVM_ERROR_NONE);
+
+    vm->state = BBZVM_STATE_READY;
+
+    // Sending stigmergy message, will leak memory and may
+    uint8_t i = 0;
+    while (1) {
+        i++;
+        bbzmsg_payload_t payload;
+        uint8_t buff[] = {1, i, 0, __BBZSTRID_data, 0, 57, 2, 0, 1};
+        bbzringbuf_construct(&payload, buff, 1, 16);
+        payload.elsize = 1;
+        payload.capacity = 10;
+        payload.datastart = 0;
+        payload.dataend = 9;
+
+        bbzinmsg_queue_append(&payload);
+        bbzvm_process_inmsgs();
+        if(vm->error == BBZVM_ERROR_MEM){
+            break;
+        }
+
+        bbzvm_gc();
+    }
+
+    // Runs out of memory BBZVM_ERROR_MEM
+    ASSERT_EQUAL(vm->state, BBZVM_STATE_ERROR);
+    ASSERT_EQUAL(vm->error, BBZVM_ERROR_MEM);
+
+    bbzvm_destruct();
+    fclose(fbcode);
+}
+
+TEST(vm_onconflict_named_function) {
+    // Init VM
+    vm = &vmObj;
+
+    uint16_t robot = 0;
+    bbzvm_construct(robot);
+    bbzvm_set_error_receiver(&set_last_error);
+    fbcode = fopen(FILE_TEST6, "rb");
+    REQUIRE(fbcode != NULL);
+    REQUIRE(fseek(fbcode, 0, SEEK_END) == 0);
+    fsize = ftell(fbcode);
+    REQUIRE(fsize > 0);
+    REQUIRE(fseek(fbcode, 0, SEEK_SET) >= 0);
+
+    bbzvm_set_bcode(&testBcode, fsize);
+
+    REQUIRE(vm->state == BBZVM_STATE_READY);
+    REQUIRE(bbzvm_register_functions() >= 0); // If this fails, it means that the heap doesn't have enough memory allocated to execute this test.
+
+    // Stepping through script
+    while (vm->state == BBZVM_STATE_READY) {
+#ifdef DEBUG
+        uint8_t instr = *vm->bcode_fetch_fun(vm->pc,1);
+        if (instr > BBZVM_INSTR_CALLS) {
+            printf("[%d: %s %d]\n", vm->pc, instr_desc[instr], *(int16_t*)vm->bcode_fetch_fun(vm->pc+1,2));
+        }
+        else {
+            printf("[%d: %s]\n", vm->pc, instr_desc[instr]);
+        }
+#endif
+        bbzvm_step();
+        ASSERT(vm->state != BBZVM_STATE_ERROR);
+    }
+    ASSERT_EQUAL(vm->state, BBZVM_STATE_DONE);
+    ASSERT_EQUAL(vm->error, BBZVM_ERROR_NONE);
+
+    vm->state = BBZVM_STATE_READY;
+
+    // Sending stigmergy message, loop twice, once for inserting in stig, other for conflict to be called
+    for(uint8_t i=0; i<2; i++) {
+        bbzmsg_payload_t payload;
+        uint8_t buff[] = {1, i, 0, __BBZSTRID_data, 0, 57, 2, 0, 1};
+        bbzringbuf_construct(&payload, buff, 1, 16);
+        payload.elsize = 1;
+        payload.capacity = 10;
+        payload.datastart = 0;
+        payload.dataend = 9;
+
+        bbzinmsg_queue_append(&payload);
+        bbzvm_process_inmsgs();
+        if(vm->error == BBZVM_ERROR_MEM){
+            break;
+        }
+
+        bbzvm_gc();
+    }
+
+    // In actually error state BBZVM_ERROR_RET
+    ASSERT_EQUAL(vm->state, BBZVM_STATE_READY);
+    ASSERT_EQUAL(vm->error, BBZVM_ERROR_NONE);
+
+    bbzvm_destruct();
+    fclose(fbcode);
+}
+
 TEST_LIST {
     ADD_TEST(vm_construct);
     ADD_TEST(vm_set_bytecode);
@@ -802,6 +936,8 @@ TEST_LIST {
     ADD_TEST(vm_stack_full);
     ADD_TEST(vm_closures);
     ADD_TEST(vm_message_processing);
+    ADD_TEST(vm_onconflict);
+    ADD_TEST(vm_onconflict_named_function);
     #if BBZHEAP_SIZE < 2048
     #warning\
     In test file "testvm.c": Running test of all features requires BBZHEAP_SIZE >= 2048\

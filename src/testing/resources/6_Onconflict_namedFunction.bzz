@@ -1,0 +1,7 @@
+
+function conflict_resolver(key, ld, rd) {
+        return ld
+}
+
+stig = stigmergy.create(0);
+stig.onconflict(conflict_resolver)

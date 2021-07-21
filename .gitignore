@@ -3,3 +3,7 @@ build*
 .ccls-cache/
 
 compile_commands.json
+
+.idea/
+
+src/cmake-build-debug/
